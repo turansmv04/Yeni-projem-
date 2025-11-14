@@ -13,21 +13,6 @@
     {
       "path": "/api/cron_weekly",
       "schedule": "0 9 * * 1"
-    },
-    {
-    "functions": {
-    "pages/api/scrape.ts": {
-      "memory": 1024,
-      "maxDuration": 60 
     }
-  },
-
-    "routes": [
-      {
-        "src": "/api/scrape",
-        "dest": "pages/api/scrape.ts"
-      }
-    ]
-}
   ]
 }
