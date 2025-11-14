@@ -57,11 +57,11 @@ function formatJobsForTelegram(jobs: JobRow[], keyword: string): string {
         message += `<b>${safeTitle}</b>\n`; // Başlıq həmişə qalın
         
         // Bütün JobRow obyektinin sahələrini yoxlayıb, səliqəli şəkildə çıxarırıq
-        // Object.entries istifadə edirik ki, Jobs cədvəlinə gələcəkdə əlavə olunan sahələr də avtomatik göstərilsin.
+        // Type Error-u aradan qaldırmaq üçün type assertion
         const jobEntries = Object.entries(job) as [string, unknown][]; 
 
         jobEntries.forEach(([key, value]) => {
-            // id, title, url və posted_at (vaxt) sahələrini təkrar göstərmirik
+            // id, title, url və posted_at sahələrini təkrar göstərmirik
             if (key === 'id' || key === 'title' || key === 'url' || key === 'posted_at') {
                 return;
             }
