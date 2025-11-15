@@ -115,7 +115,15 @@ export async function runScrapeAndGetData() {
     console.log(`\n--- WorkingNomads Scraper işə düşdü ---`);
     console.log(`Naviqasiya edilir: ${TARGET_URL}`);
     
-    const browser: Browser = await chromium.launch({ headless: true }); 
+const browser: Browser = await chromium.launch({ 
+    headless: true,
+    args: [
+        '--no-sandbox',
+        '--disable-setuid-sandbox',
+        '--disable-dev-shm-usage',
+        '--disable-gpu',
+    ]
+});    
     const page: Page = await browser.newPage();
     
     try {
