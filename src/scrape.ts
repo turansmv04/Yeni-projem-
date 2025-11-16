@@ -47,29 +47,23 @@ async function scrapeDetailPageForSalary(browser: Browser, url: string): Promise
         }
 
     } catch (e) {
-        console.warn(`\n⚠️ XƏBƏRDARLIQ: Detal səhifəsi yüklənmədi və ya Salary tapılmadı: ${url}`);
+        // Salary tapılmadı
     } finally {
         await detailPage.close();
     }
     return salary;
 }
 
-async function extractInitialJobData(wrapper: Locator, index: number): Promise<ScrapedJobData> {
-    
-    console.log(`🔍 Element #${index + 1} emal edilir...`);
+async function extractInitialJobData(wrapper: Locator): Promise<ScrapedJobData> {
     
     const titleLocator = wrapper.locator(SELECTORS.TITLE_URL).first();
     let title = '', relativeUrl = null, url = 'N/A', companyName = 'N/A', salary = 'N/A';
     
     try {
-        title = (await titleLocator.innerText({ timeout: 2000 })).trim();
+        title = (await titleLocator.innerText({ timeout: 500 })).trim();
         relativeUrl = await titleLocator.getAttribute('href');
         url = relativeUrl ? `${BASE_URL}${relativeUrl}` : 'N/A';
-        
-        console.log(`✅ #${index + 1} Title: "${title.substring(0, 30)}..."`);
-        
     } catch (e) {
-        console.error(`❌ #${index + 1} Title tapılmadı! Xəta: ${e instanceof Error ? e.message : String(e)}`);
         return { title: '', companyName: 'N/A', url: 'N/A', salary: 'N/A', siteUrl: BASE_URL }; 
     }
 
@@ -106,7 +100,7 @@ async function extractInitialJobData(wrapper: Locator, index: number): Promise<S
         if (salaryText.includes('$') && salaryText.length > 5) {
             salary = salaryText.trim();
         }
-    } catch (e) { /* Siyahıda Salary tapılmadı */ }
+    } catch (e) { }
 
     return { title, companyName, url, salary, siteUrl: BASE_URL };
 }
@@ -162,21 +156,17 @@ export async function runScrapeAndGetData() {
             }
         }
         
-        console.log(`\n${currentJobCount} elementdən əsas məlumat çıxarılır...`);
+        console.log(`\n${currentJobCount} elementdən məlumat çıxarılır...`);
         const jobWrappers = await page.locator(SELECTORS.JOB_CONTAINER).all();
         
-        console.log(`📊 Locator.all() nəticəsi: ${jobWrappers.length} wrapper tapıldı`);
-        
-        // For loop istifadə et (Promise.all əvəzinə)
         const initialResults: ScrapedJobData[] = [];
         
         for (let i = 0; i < jobWrappers.length; i++) {
-            const result = await extractInitialJobData(jobWrappers[i], i);
+            const result = await extractInitialJobData(jobWrappers[i]);
             initialResults.push(result);
         }
         
-        console.log(`\n📊 Extraction tamamlandı. Nəticə sayı: ${initialResults.length}`);
-        console.log(`📊 Title olan nəticələr: ${initialResults.filter(j => j.title.length > 0).length}`);
+        console.log(`📊 ${initialResults.filter(j => j.title.length > 0).length} real elan tapıldı`);
         
         const finalResults: ScrapedJobData[] = []; 
         
