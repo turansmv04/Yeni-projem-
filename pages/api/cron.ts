@@ -19,20 +19,20 @@ export default async function handler(
     const dayOfWeek = bakuTime.getDay(); // 0=Bazar, 1=Bazar ertəsi
     
     try {
-        // Hər gün saat 16:25-də - Scraping işini başladır
-        // Saat 16-dır VƏ dəqiqə 25-dən kiçik VƏ ya 25-ə bərabərdir (25-dən 40-a qədər işləməməsi üçün 40 ilə əvəzlədim)
-        if (hour === 16 && (minute >= 25 && minute < 40)) { // 16:25 - 16:39 arası işləyir
+        // Hər gün saat 17:35-də - Scraping işini başladır
+        // Saat 17-dir VƏ dəqiqə 35-dən böyük və 50-dən kiçikdir (15 dəqiqə icra intervalı veririk)
+        if (hour === 17 && (minute >= 35 && minute < 50)) { // 17:35 - 17:49 arası işləyir
             // Scraping işini asinxron olaraq başladır
             fetch(`${BASE_URL}/api/cron_scrape`, { 
                 method: 'GET',
                 signal: AbortSignal.timeout(300000) // 5 dəqiqə timeout
             }).catch(err => console.error('Scrape error:', err));
             
-            return res.status(200).json({ message: 'Scraping started (16:25)' });
+            return res.status(200).json({ message: 'Scraping started (17:35)' });
         }
         
-        // Hər gün saat 16:45-də - Gündəlik/Həftəlik bildirişlər
-        if (hour === 16 && minute >= 45) {
+        // Hər gün saat 18:05-də - Gündəlik/Həftəlik bildirişlər
+        if (hour === 18 && (minute >= 5 && minute < 20)) { // 18:05 - 18:19 arası işləyir
             // Gündəlik bildiriş işini başladır
             fetch(`${BASE_URL}/api/cron_daily`, {
                 method: 'GET',
@@ -46,10 +46,10 @@ export default async function handler(
                     signal: AbortSignal.timeout(60000)
                 }).catch(err => console.error('Weekly error:', err));
                 
-                return res.status(200).json({ message: 'Daily + Weekly started (16:45)' });
+                return res.status(200).json({ message: 'Daily + Weekly started (18:05)' });
             }
             
-            return res.status(200).json({ message: 'Daily started (16:45)' });
+            return res.status(200).json({ message: 'Daily started (18:05)' });
         }
 
         return res.status(200).json({ message: 'No action', hour, minute });
