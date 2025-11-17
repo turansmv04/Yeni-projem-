@@ -21,7 +21,7 @@ export default async function handler(
     
     try {
         // Hər gün saat 13:00 - Scraping
-        if (hour === 13 && minute < 15) {
+        if (hour === 14 && minute < 15) {
             fetch(`${BASE_URL}/api/cron_scrape`, { 
                 method: 'GET',
                 signal: AbortSignal.timeout(300000)
@@ -31,7 +31,7 @@ export default async function handler(
         }
         
         // Hər gün saat 13:45 - Gündəlik bildirişlər
-        if (hour === 13 && minute >= 45) {
+        if (hour === 14 && minute >= 45) {
             fetch(`${BASE_URL}/api/cron_daily`, {
                 method: 'GET',
                 signal: AbortSignal.timeout(60000)
