@@ -20,7 +20,7 @@ export default async function handler(
     
     try {
         // Hər gün saat 18:00-də - Scraping işini başladır
-        if (hour === 17 && minute === 0) { // DƏQİQ 18:00-i yoxlayır
+        if (hour === 2 && minute === 0) { // DƏQİQ 18:00-i yoxlayır
             // Scraping işini asinxron olaraq başladır
             fetch(`${BASE_URL}/api/cron_scrape`, { 
                 method: 'GET',
@@ -31,7 +31,7 @@ export default async function handler(
         }
         
         // Hər gün saat 19:00-də - Gündəlik/Həftəlik bildirişlər
-        if (hour === 18 && minute === 0) { // DƏQİQ 19:00-i yoxlayır
+        if (hour === 11 && minute === 0) { // DƏQİQ 19:00-i yoxlayır
             // Gündəlik bildiriş işini başladır
             fetch(`${BASE_URL}/api/cron_daily`, {
                 method: 'GET',
