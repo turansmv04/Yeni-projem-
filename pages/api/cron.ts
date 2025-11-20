@@ -20,33 +20,34 @@ export default async function handler(
     const dayOfWeek = bakuTime.getDay();
     
     try {
-        // Hər gün saat 13:00 - Scraping (saat 13, dəqiqə 0-14 arası)
-        if (hour === 16 && minute < 15) {
-            fetch(`${BASE_URL}/api/cron_scrape`, { 
+        // Hər gün gecə saat 01:00 AM - Scraping
+        if (hour === 1 && minute < 15) {
+            fetch(`${BASE_URL}/api/scrape`, { 
                 method: 'GET',
-                signal: AbortSignal.timeout(300000)
+                signal: AbortSignal.timeout(600000) // 10 dəqiqə
             }).catch(err => console.error('Scrape error:', err));
             
-            return res.status(200).json({ message: 'Scraping started (13:00)', hour, minute });
+            return res.status(200).json({ message: 'Scraping started (01:00 AM)', hour, minute });
         }
         
-        // Hər gün saat 13:45 - Bildirişlər (saat 13, dəqiqə 45+)
-        if (hour === 18 && minute >= 45) {
+        // Hər gün səhər saat 10:00 AM - Bildirişlər
+        if (hour === 10 && minute < 15) {
             fetch(`${BASE_URL}/api/cron_daily`, {
                 method: 'GET',
                 signal: AbortSignal.timeout(60000)
             }).catch(err => console.error('Daily error:', err));
             
+            // Bazar ertəsi həftəlik də göndər
             if (dayOfWeek === 1) {
                 fetch(`${BASE_URL}/api/cron_weekly`, {
                     method: 'GET',
                     signal: AbortSignal.timeout(60000)
                 }).catch(err => console.error('Weekly error:', err));
                 
-                return res.status(200).json({ message: 'Daily + Weekly started (13:45)', hour, minute });
+                return res.status(200).json({ message: 'Daily + Weekly started (10:00 AM)', hour, minute });
             }
             
-            return res.status(200).json({ message: 'Daily started (13:45)', hour, minute });
+            return res.status(200).json({ message: 'Daily started (10:00 AM)', hour, minute });
         }
 
         return res.status(200).json({ message: 'No action', hour, minute });
