@@ -43,33 +43,7 @@ bot.command('subscribe', (ctx) => {
 });
 
 // --- 2. Keyword-ü qəbul etmək ---
-bot.on(message('text'), async (ctx, next) => {
-    if (!ctx.chat) return next(); 
-
-    const chatId = ctx.chat.id;
-    const state = userStates.get(chatId);
-
-    if (state && !state.keyword) {
-        const keyword = ctx.message.text.trim();
-        state.keyword = keyword;
-
-        ctx.reply(
-            `Keyword: *${keyword}*. İndi isə bildirişləri hansı tezliklə almaq istədiyinizi seçin:`,
-            {
-                reply_markup: {
-                    inline_keyboard: [
-                        [{ text: 'Günlük (Daily)', callback_data: 'freq_daily' }],
-                        [{ text: 'Həftəlik (Weekly)', callback_data: 'freq_weekly' }]
-                    ]
-                } as InlineKeyboardMarkupFinal,
-                parse_mode: 'Markdown'
-            }
-        );
-        userStates.set(chatId, state);
-    } else {
-        return next(); 
-    }
-});
+ 
 
 // --- 3. Frequency-i qəbul etmək və API-yə göndərmək ---
 bot.on('callback_query', async (ctx) => {

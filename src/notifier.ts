@@ -23,7 +23,7 @@ const TELEGRAM_API_BASE_URL = `https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}
 /**
  * Mətn hissələri üçün HTML maskalaması.
  */
-function escapeHtml(text: string | null | undefined): string {
+function escapeHtml(text: string |null| undefined): string {
     if (!text) return '';
     // HTML formatında (<, >, &) simvolları maskalanır
     return text.replace(/&/g, '&amp;')

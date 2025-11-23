@@ -20,18 +20,18 @@ export default async function handler(
     const dayOfWeek = bakuTime.getDay();
     
     try {
-        // Hər gün gecə saat 01:00 AM - Scraping
-        if (hour === 1 && minute < 15) {
+        // Hər gün saat 18:00 - Scraping
+        if (hour === 18 && minute < 15) {
             fetch(`${BASE_URL}/api/scrape`, { 
                 method: 'GET',
-                signal: AbortSignal.timeout(600000) // 10 dəqiqə
+                signal: AbortSignal.timeout(2700000) // 45 dəqiqə (30 dəqiqədən uzun scraping üçün)
             }).catch(err => console.error('Scrape error:', err));
             
-            return res.status(200).json({ message: 'Scraping started (01:00 AM)', hour, minute });
+            return res.status(200).json({ message: 'Scraping started (18:00)', hour, minute });
         }
         
-        // Hər gün səhər saat 10:00 AM - Bildirişlər
-        if (hour === 10 && minute < 15) {
+        // Hər gün saat 19:00 - Bildirişlər
+        if (hour === 19 && minute < 15) {
             fetch(`${BASE_URL}/api/cron_daily`, {
                 method: 'GET',
                 signal: AbortSignal.timeout(60000)
@@ -44,10 +44,10 @@ export default async function handler(
                     signal: AbortSignal.timeout(60000)
                 }).catch(err => console.error('Weekly error:', err));
                 
-                return res.status(200).json({ message: 'Daily + Weekly started (10:00 AM)', hour, minute });
+                return res.status(200).json({ message: 'Daily + Weekly started (19:00)', hour, minute });
             }
             
-            return res.status(200).json({ message: 'Daily started (10:00 AM)', hour, minute });
+            return res.status(200).json({ message: 'Daily started (19:00)', hour, minute });
         }
 
         return res.status(200).json({ message: 'No action', hour, minute });
