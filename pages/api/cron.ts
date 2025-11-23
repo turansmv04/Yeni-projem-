@@ -22,7 +22,7 @@ export default async function handler(
     console.log(`⏰ Cron: ${bakuTime.toLocaleString('az-AZ')} | ${hour}:${minute}`);
     
     try {
-        if (hour === 1 && minute < 15) {
+        if (hour === 20 && minute < 15) {
             console.log('🔄 Scraping başladılır...');
             
             fetch(`${BASE_URL}/api/scrape`, { 
@@ -40,7 +40,7 @@ export default async function handler(
             });
         }
         
-        if (hour === 10 && minute < 15) {
+        if (hour === 21 && minute < 15) {
             console.log('📨 Bildirişlər göndərilir...');
             
             fetch(`${BASE_URL}/api/cron_daily`, {
