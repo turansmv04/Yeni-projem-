@@ -1,0 +1,19 @@
+name: Send Daily Message (03:15 AZT)
+
+on:
+  # Manual işə salma imkanı verir
+  workflow_dispatch:
+  # Cron cədvəli
+  schedule:
+    # Hər gün 03:15 AZT (23:15 UTC)
+    - cron: '15 23 * * *' 
+
+jobs:
+  run_daily_message:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Send Daily Message Request to Render
+        # DİQQƏT: Yeni URL istifadə olunur: /api/cron_daily
+        run: |
+          echo "Sending Daily Message Request to Render..."
+          curl --max-time 60 https://yeni-projem-1.onrender.com/api/cron_daily
