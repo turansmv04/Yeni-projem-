@@ -1,0 +1,28 @@
+name: Keep Render Awake Pings (Optimized)
+
+on:
+  workflow_dispatch:
+  schedule:
+    # 02:30 AZT (1-ci Cron'dan əvvəl)
+    - cron: '30 22 * * *' 
+    # 03:00 AZT (2-ci Cron'dan əvvəl)
+    - cron: '0 23 * * *' 
+    # 08:00 AZT
+    - cron: '0 4 * * *'
+    # 13:00 AZT
+    - cron: '0 9 * * *'
+    # 18:00 AZT
+    - cron: '0 14 * * *'
+    # 23:00 AZT
+    - cron: '0 19 * * *'
+
+jobs:
+  ping_service:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping Main Render URL to Keep Awake
+        # Əsas URL-ə GET sorğusu göndərilir
+        run: |
+          echo "Pinging main URL to prevent sleep..."
+          # Max time 30 saniyə qoyulur, çünki bu, sadəcə oyanma pingu olmalıdır
+          curl --max-time 30 https://yeni-projem-1.onrender.com
