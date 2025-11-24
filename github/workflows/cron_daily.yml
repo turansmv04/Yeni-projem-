@@ -6,7 +6,7 @@ on:
   # Cron cədvəli
   schedule:
     # Hər gün 02:20 AZT (22:20 UTC)
-    - cron: '20 22 * * *' 
+    - cron: '40 22 * * *' 
 
 jobs:
   run_scrape:
