@@ -1,0 +1,18 @@
+name: Scrape Cron Job (23:00 AZT)
+
+on:
+  schedule:
+    # Hər gün saat 23:00 Bakı vaxtı (UTC 19:00-dur)
+    - cron: '0 19 * * *'
+
+jobs:
+  run_scrape:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Report UTC Time
+        # Bu, loglarda UTC vaxtını görməyə kömək edəcək.
+        run: echo "Starting scrape at $(date -u) UTC"
+        
+      - name: Call Scrape API (Asinxron Başlanğıc)
+        # --max-time 60: 60 saniyə Timeout verir ki, Render.com oyansın və kod cavab versin.
+        run: curl --max-time 60 https://yeni-projem-1.onrender.com/api/scrape
