@@ -35,7 +35,7 @@ bot.command('subscribe', (ctx) => {
     userStates.set(ctx.chat.id, { keyword: null, frequency: null });
     
     ctx.reply(
-        '👋 Salam! Zəhmət olmasa, axtarış etmək istədiyiniz *Keyword*-ü (məsələn: React, Developer, Senior Python) daxil edin.',
+        '👋 Salam! Zəhmət olmasa, axtarış etmək istədiyiniz *Keyword*-ü (məsələn: CyberSecurity, Developer, Engineer) daxil edin.',
         { parse_mode: 'Markdown' }
     );
 });
