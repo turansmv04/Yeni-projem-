@@ -6,8 +6,10 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
-    "start": "next start -H 0.0.0.0 -p $PORT",
-    "lint": "next lint"
+    "start-next": "next start -H 0.0.0.0 -p $PORT",
+    "start-bot": "ts-node bot.ts",
+    "lint": "next lint",
+    "start": "concurrently --kill-others \"npm run start-next\" \"npm run start-bot\""
   },
   "dependencies": {
     "@sparticuz/chromium": "^141.0.0",
@@ -19,7 +21,8 @@
     "playwright-core": "^1.56.1",
     "react": "19.2.0",
     "react-dom": "19.2.0",
-    "telegraf": "^4.16.3"
+    "telegraf": "^4.16.3",
+    "concurrently": "^8.2.2"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
