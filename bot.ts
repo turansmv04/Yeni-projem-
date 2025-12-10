@@ -8,7 +8,9 @@ type InlineKeyboardMarkupFinal = {
 };
 
 const BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
-const NEXTJS_SUBSCRIBE_URL = process.env.NEXTJS_SUBSCRIBE_URL || 'http://localhost:3000/api/subscribe';
+
+// 1. ✅ DÜZƏLİŞ: Public URL təyin edildi
+const NEXTJS_SUBSCRIBE_URL = 'https://yeni-projem-1.onrender.com/api/subscribe';
 
 if (!BOT_TOKEN) {
   throw new Error('TELEGRAM_BOT_TOKEN .env faylında təyin edilməyib.');
@@ -32,53 +34,60 @@ bot.command('subscribe', (ctx) => {
   );
 });
 
-// KEYWORD ALMAQ ÜÇÜN TEXT HANDLER
+// 2. ✅ DÜZƏLİŞ: Keyword-ü tutan və frequency-i soruşan handler əlavə edildi
 bot.on(message('text'), async (ctx) => {
-  if (!ctx.chat || !ctx.message.text) return;
-  
-  const chatId = ctx.chat.id;
-  const text = ctx.message.text.trim();
-  
-  if (!text.startsWith('/')) {
+    if (!ctx.chat) return;
+
+    const chatId = ctx.chat.id;
     const state = userStates.get(chatId);
-    
-    if (state && !state.keyword) {
-      state.keyword = text;
-      
-      const keyboard: InlineKeyboardMarkupFinal = {
-        inline_keyboard: [
-          [
-            { text: '📅 Gündəlik (Daily)', callback_data: 'freq_daily' },
-            { text: '📆 Həftəlik (Weekly)', callback_data: 'freq_weekly' }
-          ]
-        ]
-      };
-      
-      await ctx.reply(
-        `✅ Keyword: *${text}*\n\n📊 İndi tezliyini seçin:`,
-        {
-          parse_mode: 'Markdown',
-          reply_markup: keyboard
-        }
-      );
+
+    // Əgər state mövcuddursa və keyword hələ qeyd edilməyibsə
+    if (state && state.keyword === null) {
+        state.keyword = ctx.message.text.trim();
+
+        const inlineKeyboard: InlineKeyboardMarkupFinal = {
+            inline_keyboard: [
+                [
+                    { text: 'Gündəlik', callback_data: 'freq_daily' },
+                    { text: 'Həftəlik', callback_data: 'freq_weekly' },
+                ],
+            ],
+        };
+
+        await ctx.reply(
+            `✅ Keyword olaraq **${state.keyword}** seçildi.\nZəhmət olmasa, *Tezlik*-i (Frequency) seçin:`,
+            { parse_mode: 'Markdown', reply_markup: inlineKeyboard }
+        );
+    } else if (state && state.keyword !== null && state.frequency === null) {
+        // İstifadəçi frequency gözlənilərkən başqa mətn yazarsa
+        await ctx.reply('Zəhmət olmasa, yuxarıdakı düymələrdən birini seçin: Gündəlik və ya Həftəlik.');
     }
-  }
+    // Əks halda (əgər state yoxdursa və ya abunəlik prosesi bitibsə), mətnə cavab vermir.
 });
 
 bot.on('callback_query', async (ctx) => {
   if (!('data' in ctx.callbackQuery) || !ctx.chat) return;
-  
   const callbackData = ctx.callbackQuery.data;
   const chatId = ctx.chat.id;
   const state = userStates.get(chatId);
   
+  // Əmin oluruq ki, state, keyword var və bu bir frequency seçimidir.
   if (state && state.keyword && callbackData.startsWith('freq_')) {
     const frequency = callbackData.replace('freq_', '') as 'daily' | 'weekly';
     state.frequency = frequency;
     
-    await ctx.answerCbQuery();
-    await ctx.editMessageReplyMarkup({ inline_keyboard: [] } as InlineKeyboardMarkupFinal);
+    // Düyməyə basılmasını təsdiqləyir və düymələri silir
+    await ctx.answerCbQuery('Seçim qeydə alındı.');
     
+    // Düymələri sildikdə bəzən Telegraf xəta verə bilər. Aşağıdakı sətir bu məqsədlə istifadə olunur.
+    // Lakin, biz indi editMessageReplyMarkup istifadə edirik
+    try {
+        await ctx.editMessageReplyMarkup({ inline_keyboard: [] } as InlineKeyboardMarkupFinal);
+    } catch (error) {
+        // Mesaj çox köhnədirsə, bu xəta normaldır.
+        console.log("Mesaj markupu silinərkən xəta baş verdi (yəqin ki, çox köhnədir).");
+    }
+
     try {
       const postData = {
         ch_id: String(chatId),
@@ -86,11 +95,12 @@ bot.on('callback_query', async (ctx) => {
         frequency: state.frequency,
       };
       
+      // API müraciəti
       const response = await axios.post(NEXTJS_SUBSCRIBE_URL, postData);
       
       if (response.data.status === 'success') {
         await ctx.reply(
-          `🎉 *Təbrik edirik!* Siz ${state.keyword} sözünə *${state.frequency.toUpperCase()}* abunə oldunuz.`,
+          `🎉 *Təbrik edirik!* Siz **${state.keyword}** sözünə *${state.frequency.toUpperCase()}* abunə oldunuz.`,
           { parse_mode: 'Markdown' }
         );
       } else {
@@ -105,16 +115,17 @@ bot.on('callback_query', async (ctx) => {
       );
     }
     
+    // Proses bitdi, state silinir
     userStates.delete(chatId);
   } else {
-    await ctx.answerCbQuery('Bu seçim artıq etibarlı deyil.');
+    await ctx.answerCbQuery('Bu seçim artıq etibarlı deyil və ya proses tamamlanıb.');
   }
 });
 
 bot.launch()
   .then(() => {
     console.log('🤖 Telegram Botu uğurla işə düşdü!');
-    console.log('📡 Abunəlik API-si:', NEXTJS_SUBSCRIBE_URL);
+    console.log(`Abunəlik API-si: ${NEXTJS_SUBSCRIBE_URL}`);
   })
   .catch(err => {
     console.error('Bot işə düşərkən kritik xəta:', err);
