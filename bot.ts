@@ -11,10 +11,11 @@ type InlineKeyboardMarkupFinal = {
 };
 
 const BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
-const NEXTJS_SUBSCRIBE_URL = process.env.SUBSCRIBE_API_URL;
+const NEXTJS_SUBSCRIBE_URL = process.env.SUBSCRIBE_API_URL || 'http://localhost:3000/api/subscribe';
 
-if (!BOT_TOKEN) throw new Error('TELEGRAM_BOT_TOKEN .env faylında yoxdur.');
-if (!NEXTJS_SUBSCRIBE_URL) throw new Error('SUBSCRIBE_API_URL .env faylında yoxdur.');
+if (!BOT_TOKEN) {
+    throw new Error('TELEGRAM_BOT_TOKEN .env faylında təyin edilməyib.');
+}
 
 const bot = new Telegraf<Context>(BOT_TOKEN);
 
@@ -24,21 +25,25 @@ interface SubscriptionState {
 }
 const userStates: Map<number, SubscriptionState> = new Map();
 
+// /subscribe command
 bot.command('subscribe', (ctx) => {
     if (!ctx.chat) return;
     userStates.set(ctx.chat.id, { keyword: null, frequency: null });
     
     ctx.reply(
-        'Keyword daxil edin. Misal: CyberSecurity, Developer, Engineer',
+        '👋 Salam! Zəhmət olmasa, axtarış etmək istədiyiniz *Keyword*-ü (məsələn: CyberSecurity, Developer, Engineer) daxil edin.',
         { parse_mode: 'Markdown' }
     );
 });
 
+// Text message handler - keyword qəbul edir
 bot.on(message('text'), async (ctx) => {
     const chatId = ctx.chat?.id;
     if (!chatId) return;
 
     const state = userStates.get(chatId);
+    
+    // Əgər state yoxdursa və ya keyword artıq alınıbsa, geri qayıt
     if (!state || state.keyword !== null) return;
 
     const keyword = ctx.message.text.trim();
@@ -54,11 +59,12 @@ bot.on(message('text'), async (ctx) => {
     };
 
     await ctx.reply(
-        `Keyword: *${keyword}* qəbul edildi.\nTezliyi seçin:`,
+        `✅ Keyword: *${keyword}* qəbul edildi.\n\nİndi tezliyi seçin:`,
         { parse_mode: 'Markdown', reply_markup: keyboard }
     );
 });
 
+// Callback query handler - frequency seçimi
 bot.on('callback_query', async (ctx) => {
     if (!('data' in ctx.callbackQuery) || !ctx.chat) return; 
     
@@ -72,44 +78,80 @@ bot.on('callback_query', async (ctx) => {
 
         await ctx.answerCbQuery();
         await ctx.editMessageReplyMarkup({ inline_keyboard: [] } as InlineKeyboardMarkupFinal); 
-        
+
         try {
             const postData = {
-                ch_id: String(chatId),
+                ch_id: String(chatId), 
                 keyword: state.keyword,
                 frequency: state.frequency
             };
 
-            const response = await axios.post(NEXTJS_SUBSCRIBE_URL, postData);
+            console.log('API-yə göndərilir:', NEXTJS_SUBSCRIBE_URL);
+            console.log('Data:', postData);
+
+            const response = await axios.post(NEXTJS_SUBSCRIBE_URL, postData, {
+                timeout: 10000,
+                headers: {
+                    'Content-Type': 'application/json'
+                }
+            });
             
             if (response.data.status === 'success') {
                 await ctx.reply(
-                    `🎉 Siz \`${state.keyword}\` üçün *${state.frequency.toUpperCase()}* abunə oldunuz.`,
+                    `🎉 *Təbrik edirik!* Siz \`${state.keyword}\` sözünə *${state.frequency.toUpperCase()}* abunə oldunuz.`,
                     { parse_mode: 'Markdown' }
                 );
             } else {
-                await ctx.reply(`❌ Xəta: ${response.data.message || 'API xətası'}`);
+                await ctx.reply(`❌ Abunəlik uğursuz oldu: ${response.data.message || 'Daxili API xətası.'}`);
             }
 
         } catch (error: any) {
-            console.error("API Error:", error.message);
-            await ctx.reply(`❌ Serverlə əlaqə mümkün olmadı. Xəta: ${error.message}`);
+            console.error("API-yə qoşularkən xəta:", error.message);
+            if (error.response) {
+                console.error('Response status:', error.response.status);
+                console.error('Response data:', error.response.data);
+            }
+            await ctx.reply(`❌ Xəta baş verdi. Zəhmət olmasa, serverin işlək olduğundan əmin olun.\nXəta: ${error.message}`);
         }
 
         userStates.delete(chatId);
     } else {
-        await ctx.answerCbQuery('Artıq etibarlı deyil.');
+        await ctx.answerCbQuery('Bu seçim artıq etibarlı deyil.');
     }
 });
 
-bot.launch()
-    .then(() => {
-        console.log('Telegram Bot İşə düşdü!');
-        console.log(`API endpoint: ${NEXTJS_SUBSCRIBE_URL}`);
-    })
-    .catch(err => {
-        console.error('Bot start xətası:', err);
-    });
+// Bot-u işə sal
+bot.launch().then(async () => {
+    console.log('🤖 Telegram Botu uğurla işə düşdü!');
+    console.log(`Abunəlik API-si: ${NEXTJS_SUBSCRIBE_URL}`);
+    console.log(`Environment: ${process.env.NODE_ENV || 'development'}`);
+    
+    // Webhook məlumatlarını yoxla
+    try {
+        const webhookInfo = await bot.telegram.getWebhookInfo();
+        console.log('Webhook info:', webhookInfo);
+        
+        // Əgər webhook qurulubsa və siz local test edirsinizsə, silin
+        if (webhookInfo.url && process.env.NODE_ENV !== 'production') {
+            console.log('Webhook silinir (local development üçün)...');
+            await bot.telegram.deleteWebhook();
+            console.log('Webhook silindi. Long polling aktiv.');
+        }
+    } catch (error) {
+        console.error('Webhook yoxlanılarkən xəta:', error);
+    }
+}).catch(err => {
+    console.error('Bot işə düşərkən kritik xəta:', err);
+    process.exit(1);
+});
 
-process.once('SIGINT', () => bot.stop('SIGINT'));
-process.once('SIGTERM', () => bot.stop('SIGTERM'));
+// Graceful shutdown
+process.once('SIGINT', () => {
+    console.log('SIGINT siqnalı alındı. Bot dayanır...');
+    bot.stop('SIGINT');
+});
+
+process.once('SIGTERM', () => {
+    console.log('SIGTERM siqnalı alındı. Bot dayanır...');
+    bot.stop('SIGTERM');
+});
