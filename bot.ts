@@ -12,13 +12,8 @@ type InlineKeyboardMarkupFinal = {
 
 const BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
 const NEXTJS_SUBSCRIBE_URL = process.env.NEXT_PUBLIC_SUBSCRIBE_API_URL;
-
-if (!BOT_TOKEN) {
-    throw new Error('TELEGRAM_BOT_TOKEN .env faylında yoxdur.');
-}
-if (!NEXTJS_SUBSCRIBE_URL) {
-    throw new Error('NEXT_PUBLIC_SUBSCRIBE_API_URL .env faylında yoxdur.');
-}
+if (!BOT_TOKEN) throw new Error('BOT_TOKEN yoxdur');
+if (!NEXTJS_SUBSCRIBE_URL) throw new Error('NEXTJS_SUBSCRIBE_URL yoxdur');
 
 const bot = new Telegraf<Context>(BOT_TOKEN);
 
