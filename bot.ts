@@ -10,6 +10,8 @@ type InlineKeyboardMarkupFinal = {
 const BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
 const NEXTJS_SUBSCRIBE_URL = process.env.NEXTJS_SUBSCRIBE_URL || 'http://localhost:3000/api/subscribe';
 
+console.log('🔗 API URL:', NEXTJS_SUBSCRIBE_URL);
+
 if (!BOT_TOKEN) {
   throw new Error('TELEGRAM_BOT_TOKEN .env faylında təyin edilməyib.');
 }
@@ -35,7 +37,7 @@ bot.command('subscribe', (ctx) => {
   );
 });
 
-// TEXT MESAJ HANDLER - BU ƏSAS HİSSƏ EKSİK İDİ!
+// TEXT MESSAGE HANDLER
 bot.on(message('text'), async (ctx) => {
   if (!ctx.chat || !ctx.message.text) return;
   
