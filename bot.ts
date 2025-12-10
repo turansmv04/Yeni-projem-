@@ -90,7 +90,7 @@ bot.on('callback_query', async (ctx) => {
             console.log('Data:', postData);
 
             const response = await axios.post(NEXTJS_SUBSCRIBE_URL, postData, {
-                timeout: 10000,
+                timeout: 30000,
                 headers: {
                     'Content-Type': 'application/json'
                 }
