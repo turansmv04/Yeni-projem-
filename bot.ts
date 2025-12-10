@@ -1,19 +1,9 @@
 import 'dotenv/config';
+
 import { Telegraf, Context } from 'telegraf';
 import { message } from 'telegraf/filters';
 import axios from 'axios';
 
-// --- Mühit Dəyişənlərinin Yoxlanılması ---
-// Lokal test üçün NODE_ENV nəzərə alınır
-const BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
-const NEXTJS_SUBSCRIBE_URL = process.env.SUBSCRIBE_API_URL;
-
-if (!BOT_TOKEN) throw new Error('TELEGRAM_BOT_TOKEN təyin edilməyib.');
-if (!NEXTJS_SUBSCRIBE_URL) throw new Error('SUBSCRIBE_API_URL təyin edilməyib.');
-
-const bot = new Telegraf<Context>(BOT_TOKEN);
-
-// --- Type Definitions ---
 type InlineKeyboardMarkupFinal = {
     inline_keyboard: {
         text: string;
@@ -21,39 +11,51 @@ type InlineKeyboardMarkupFinal = {
     }[][];
 };
 
+const BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
+// NEXTJS_SUBSCRIBE_URL Render/Public mühitdə işləməsi üçün ENV-dən götürülməlidir.
+const NEXTJS_SUBSCRIBE_URL = process.env.SUBSCRIBE_API_URL || 'http://localhost:3000/api/subscribe'; 
+
+if (!BOT_TOKEN) {
+    throw new Error('TELEGRAM_BOT_TOKEN .env faylında təyin edilməyib.');
+}
+if (!process.env.SUBSCRIBE_API_URL && process.env.NODE_ENV === 'production') {
+    // Renderdə olarkən bu URL-in təyin edilməsi vacibdir.
+    throw new Error('SUBSCRIBE_API_URL .env/Render dəyişənlərində təyin edilməlidir.');
+}
+
+
+const bot = new Telegraf<Context>(BOT_TOKEN);
+
 interface SubscriptionState {
     keyword: string | null;
     frequency: 'daily' | 'weekly' | null;
 }
-// Yaddaşda (in-memory) istifadəçi vəziyyətini saxlayan Map
 const userStates: Map<number, SubscriptionState> = new Map();
 
-// --- Command and Message Handlers ---
 
-// /subscribe əmri
+// --- 1. /subscribe əmri ---
 bot.command('subscribe', (ctx) => {
     if (!ctx.chat) return;
-    // İstifadəçi state-ini sıfırlayır/yaradır
     userStates.set(ctx.chat.id, { keyword: null, frequency: null });
     
     ctx.reply(
-        'Keyword daxil edin. Misal: CyberSecurity, Developer, Engineer',
+        '👋 Salam! Zəhmət olmasa, axtarış etmək istədiyiniz *Keyword*-ü (məsələn: CyberSecurity, Developer, Engineer) daxil edin.',
         { parse_mode: 'Markdown' }
     );
 });
 
-// İstifadəçi mətn göndərəndə işləyir (Keyword qəbulu)
+// --- 2. BƏRPA EDİLMİŞ HİSSƏ: Keyword Qəbulu (Text Message Handler) ---
 bot.on(message('text'), async (ctx) => {
     const chatId = ctx.chat?.id;
     if (!chatId) return;
 
     const state = userStates.get(chatId);
     
-    // Yoxlama: Abunəlik prosesi başlamayıbsa və ya Keyword artıq təyin edilibsə
+    // Yoxlama: Abunəlik prosesi başlamayıbsa və ya keyword artıq alınıbsa, geri qayıt
     if (!state || state.keyword !== null) return;
 
     const keyword = ctx.message.text.trim();
-    state.keyword = keyword; // Keyword yaddaşda saxlanılır
+    state.keyword = keyword;
 
     const keyboard: InlineKeyboardMarkupFinal = {
         inline_keyboard: [
@@ -65,12 +67,13 @@ bot.on(message('text'), async (ctx) => {
     };
 
     await ctx.reply(
-        `Keyword: *${keyword}* qəbul edildi.\nTezliyi seçin:`,
+        `✅ Keyword: *${keyword}* qəbul edildi.\n\nİndi tezliyi seçin:`,
         { parse_mode: 'Markdown', reply_markup: keyboard }
     );
 });
 
-// Düymə seçimi (Frequency qəbulu)
+
+// --- 3. Callback Query (Frequency seçimi) ---
 bot.on('callback_query', async (ctx) => {
     if (!('data' in ctx.callbackQuery) || !ctx.chat) return; 
     
@@ -82,9 +85,11 @@ bot.on('callback_query', async (ctx) => {
         const frequency = callbackData.replace('freq_', '') as 'daily' | 'weekly';
         state.frequency = frequency;
 
-        await ctx.answerCbQuery(); // Düyməyə basılmanı təsdiqlə
-        await ctx.editMessageReplyMarkup({ inline_keyboard: [] } as InlineKeyboardMarkupFinal); // Düymələri təmizlə
+        await ctx.answerCbQuery();
+        
+        await ctx.editMessageReplyMarkup({ inline_keyboard: [] } as InlineKeyboardMarkupFinal); 
 
+        
         try {
             const postData = {
                 ch_id: String(chatId), 
@@ -92,55 +97,44 @@ bot.on('callback_query', async (ctx) => {
                 frequency: state.frequency
             };
 
-            // Timeout müddəti 30 saniyəyə artırıldı (API yuxudan oyanması üçün)
+            // Timeout 30 saniyəyə qaldırıldı (Renderdə yuxudan oyanmaya vaxt vermək üçün)
             const response = await axios.post(NEXTJS_SUBSCRIBE_URL, postData, {
-                timeout: 30000, 
-                headers: {
-                    'Content-Type': 'application/json'
-                }
+                 timeout: 30000 
             });
             
             if (response.data.status === 'success') {
                 await ctx.reply(
-                    `🎉 *Təbrik edirik!* Siz \`${state.keyword}\` üçün *${state.frequency.toUpperCase()}* abunə oldunuz.`,
+                    `🎉 *Təbrik edirik!* Siz \`${state.keyword}\` sözünə *${state.frequency.toUpperCase()}* abunə oldunuz.`,
                     { parse_mode: 'Markdown' }
                 );
             } else {
-                await ctx.reply(`❌ Xəta: ${response.data.message || 'API xətası'}`);
+                await ctx.reply(`❌ Abunəlik uğursuz oldu: ${response.data.message || 'Daxili API xətası.'}`);
             }
 
         } catch (error: any) {
-            console.error("API Error:", error.message);
-            // İstifadəçiyə timeout xətası haqqında məlumat verilir
-            await ctx.reply(`❌ Serverlə əlaqə mümkün olmadı. Xəta: ${error.message}. Serverin yuxudan oyanmasını gözləyin və yenidən cəhd edin.`);
+            console.error("API-yə qoşularkən xəta:", error.message);
+            await ctx.reply(`❌ Xəta baş verdi. Serverlə əlaqə kəsildi (Timeout). Zəhmət olmasa, serverin işlək olduğundan əmin olun.`);
         }
 
-        userStates.delete(chatId); // State silinir
+        userStates.delete(chatId);
     } else {
-        await ctx.answerCbQuery('Artıq etibarlı deyil.');
+        await ctx.answerCbQuery('Bu seçim artıq etibarlı deyil.');
     }
 });
 
-// --- Botu İşə Salma Məntiqi (Long Polling) ---
 
-// Lokal test üçün Webhook-u silmək və Long Polling-i başlatmaq üçün
+// --- Botu İşə Salma (Long Polling) ---
 bot.launch().then(async () => {
-    console.log('🤖 Telegram Botu uğurla işə düşdü (Long Polling rejimində)!');
-    
-    // Əgər əvvəlki testlərdən Webhook qalmışsa, onu silin
-    try {
-        await bot.telegram.deleteWebhook();
-        console.log('Webhook təmizləndi.');
-    } catch (error) {
-        // Webhook yoxdursa, xəta verməyəcək
-    }
-    
+    console.log('🤖 Telegram Botu uğurla işə düşdü!');
     console.log(`Abunəlik API-si: ${NEXTJS_SUBSCRIBE_URL}`);
+    
+    // Təmizlik (Webhook-u silmək, əgər təsadüfən qurulubsa)
+    await bot.telegram.deleteWebhook().catch(() => {});
+    console.log('Local Long Polling aktiv.');
 }).catch(err => {
     console.error('Bot işə düşərkən kritik xəta:', err);
     process.exit(1);
 });
 
-// Graceful shutdown
 process.once('SIGINT', () => bot.stop('SIGINT'));
 process.once('SIGTERM', () => bot.stop('SIGTERM'));
