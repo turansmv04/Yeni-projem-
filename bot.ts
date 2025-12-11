@@ -11,8 +11,11 @@ const BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
 
 // NEXTJS URL-ləri
 const NEXTJS_SUBSCRIBE_URL = 'https://yeni-projem-1.onrender.com/api/subscribe';
-// YENİ: Ləğvetmə (Unsubscribe) endpointi
+// Ləğvetmə (Unsubscribe) endpointi
 const NEXTJS_UNSUBSCRIBE_URL = 'https://yeni-projem-1.onrender.com/api/unsubscribe';
+
+// YENİ: İstifadəçi məlumatlarını çəkmək üçün endpoint
+const NEXTJS_GET_SUBSCRIPTIONS_URL = 'https://yeni-projem-1.onrender.com/api/myinfo'; // <--- YENİ URL
 
 if (!BOT_TOKEN) {
   throw new Error('TELEGRAM_BOT_TOKEN .env faylında təyin edilməyib.');
@@ -39,7 +42,7 @@ bot.command('subscribe', (ctx) => {
   );
 });
 
-// YENİ: /unsubscribe əmri
+// /unsubscribe əmri
 bot.command('unsubscribe', (ctx) => {
   if (!ctx.chat) return;
   // State-i ləğvetmə rejiminə keçiririk
@@ -53,6 +56,47 @@ bot.command('unsubscribe', (ctx) => {
     '❌ Ləğv etmək istədiyiniz abunəliyin **Keyword**-ünü (məsələn: CyberSecurity) daxil edin.',
     { parse_mode: 'Markdown' }
   );
+});
+
+// YENİ: /myinfo əmri
+bot.command('myinfo', async (ctx) => {
+    if (!ctx.chat) return;
+
+    const chatId = ctx.chat.id;
+    await ctx.reply('ℹ️ Abunəlik məlumatlarınız yoxlanılır...');
+
+    try {
+        // GET sorğusu göndəririk. Chat ID URL query-də ötürülür.
+        const response = await axios.get(NEXTJS_GET_SUBSCRIPTIONS_URL, {
+            params: {
+                ch_id: String(chatId)
+            }
+        });
+        
+        const { subscriptions } = response.data;
+
+        if (subscriptions && subscriptions.length > 0) {
+            let message = '⭐ **Sizin Aktiv Abunəlikləriniz** ⭐\n\n';
+
+            subscriptions.forEach((sub: { keyword: string; frequency: 'daily' | 'weekly' }, index: number) => {
+                // Keyword-un ilk hərfini böyüdürük (Gözəl görünməsi üçün)
+                const formattedKeyword = sub.keyword.charAt(0).toUpperCase() + sub.keyword.slice(1);
+                const formattedFrequency = sub.frequency === 'daily' ? 'Gündəlik ☀️' : 'Həftəlik 📅';
+
+                message += `${index + 1}. **${formattedKeyword}**\n`;
+                message += `    Tezlik: *${formattedFrequency}*\n`;
+            });
+
+            await ctx.reply(message, { parse_mode: 'Markdown' });
+
+        } else {
+            await ctx.reply('❌ Sizin hazırda heç bir aktiv abunəliyiniz yoxdur.\nAbunə olmaq üçün: /subscribe');
+        }
+
+    } catch (error: any) {
+        console.error("❌❌ XƏTA: /myinfo API çağırışı uğursuz oldu:", error.message);
+        await ctx.reply('❌ Məlumatları çəkərkən xəta baş verdi. Zəhmət olmasa, sonra yenidən cəhd edin.');
+    }
 });
 
 // ✅ Keyword-ü tutan handler (Bütün mətn girişləri bu hissədə işlənir)
