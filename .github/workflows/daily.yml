@@ -1,19 +1,20 @@
 name: Send Daily Scrape (02:40 AZT)
 
 on:
-  # Manual işə salma imkanı verir
-  workflow_dispatch:
-  # Cron cədvəli
-  schedule:
-    # Hər gün 02:20 AZT (22:20 UTC)
-    - cron: '40 22 * * *' 
+  # Manual işə salma imkanı verir
+  workflow_dispatch:
+  # Cron cədvəli
+  schedule:
+    # Hər gün 02:20 AZT (22:20 UTC)
+    - cron: '40 22 * * *' 
 
 jobs:
-  run_scrape:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Send Scrape Request to Render
-        # Sənin Render URL-ə GET sorğusu göndərilir
-        run: |
-          echo "Sending Scrape Request to Render..."
-          curl --max-time 60 https://yeni-projem-1.onrender.com/api/scrape
+  run_scrape:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Send Scrape Request to Render
+        # Sənin Render URL-ə GET sorğusu göndərilir
+        run: |
+          echo "Sending Scrape Request to Render..."
+          # DÜZƏLİŞ 3: Timeout 60-dan 120 saniyəyə qaldırıldı!
+          curl --max-time 120 https://yeni-projem-1.onrender.com/api/scrape
