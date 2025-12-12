@@ -1,5 +1,3 @@
-// my-scrape-project/src/scrape.ts
-
 import type { Browser, Page, Locator } from 'playwright'; 
 import { chromium } from 'playwright';
 import { insertOrUpdateSupabase } from './supabase'; 
@@ -27,7 +25,7 @@ const SELECTORS = {
     LIST_PARENT: 'div.jobs-list',
 };
 
-// --- KÖMƏKÇİ FUNKSİYALAR (Sizinki dəyişməz qalır) ---
+// --- KÖMƏKÇİ FUNKSİYALAR ---
 
 async function scrapeDetailPageForSalary(browser: Browser, url: string): Promise<string> {
     const detailPage = await browser.newPage();
@@ -63,16 +61,26 @@ async function extractInitialJobData(wrapper: Locator): Promise<ScrapedJobData> 
     let title = '', relativeUrl = null, url = 'N/A', companyName = 'N/A', salary = 'N/A';
     
     try {
-        title = (await titleLocator.innerText({ timeout: 1000 })).trim();
+        // ✅ TIMEOUT ARTDIRILDI: 1000ms → 5000ms
+        title = (await titleLocator.innerText({ timeout: 5000 })).trim();
         relativeUrl = await titleLocator.getAttribute('href');
         url = relativeUrl ? `${BASE_URL}${relativeUrl}` : 'N/A';
     } catch (e) {
+        // ✅ XƏTA LOQU əlavə edildi debug üçün
+        console.warn(`⚠️ Title çıxarıla bilmədi:`, e instanceof Error ? e.message : String(e));
         return { title: '', companyName: 'N/A', url: 'N/A', salary: 'N/A', siteUrl: BASE_URL }; 
+    }
+
+    // ✅ YENİ YOXLAMA: Boş title olarsa skip et
+    if (!title || title.length === 0) {
+        console.warn(`⚠️ Boş title tapıldı, bu iş keçilir`);
+        return { title: '', companyName: 'N/A', url: 'N/A', salary: 'N/A', siteUrl: BASE_URL };
     }
 
     try {
         const companyContainerLocator = wrapper.locator(SELECTORS.COMPANY_CONTAINER).first(); 
-        let rawText = (await companyContainerLocator.innerText({ timeout: 1000 })).trim(); 
+        // ✅ TIMEOUT ARTDIRILDI: 1000ms → 3000ms
+        let rawText = (await companyContainerLocator.innerText({ timeout: 3000 })).trim(); 
         let cleanedText = rawText.replace(/\s+/g, ' ').trim(); 
         
         const lowerCaseName = cleanedText.toLowerCase();
@@ -85,6 +93,7 @@ async function extractInitialJobData(wrapper: Locator): Promise<ScrapedJobData> 
         }
 
     } catch (e) { 
+        console.warn(`⚠️ Şirkət adı çıxarıla bilmədi: "${title}"`);
         companyName = 'N/A';
     }
     
@@ -115,20 +124,27 @@ export async function runScrapeAndGetData() {
     console.log(`\n--- WorkingNomads Scraper işə düşdü ---`);
     console.log(`Naviqasiya edilir: ${TARGET_URL}`);
     
-const browser: Browser = await chromium.launch({ 
-    headless: true,
-    args: [
-        '--no-sandbox',
-        '--disable-setuid-sandbox',
-        '--disable-dev-shm-usage',
-        '--disable-gpu',
-    ]
-});    
+    const browser: Browser = await chromium.launch({ 
+        headless: true,
+        args: [
+            '--no-sandbox',
+            '--disable-setuid-sandbox',
+            '--disable-dev-shm-usage',
+            '--disable-gpu',
+            '--disable-blink-features=AutomationControlled',
+            '--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+        ]
+    });    
     const page: Page = await browser.newPage();
     
     try {
         await page.goto(TARGET_URL, { timeout: 60000 });
         await page.waitForSelector(SELECTORS.LIST_PARENT, { timeout: 40000 }); 
+        
+        // ✅ YENİ: Job containerlərin yüklənməsini gözlə
+        console.log('✅ List parent yükləndi, job containerləri gözlənilir...');
+        await page.waitForSelector(SELECTORS.JOB_CONTAINER, { timeout: 10000 });
+        console.log('✅ Job containerləri aşkar edildi, scroll başlayır...');
 
         // --- SCROLL DÖVRÜ ---
         let currentJobCount = 0;
