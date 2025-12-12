@@ -137,6 +137,13 @@ export async function runScrapeAndGetData() {
     });    
     const page: Page = await browser.newPage();
     
+    // ✅ Playwright-ın bot flaglarını gizlət
+    await page.addInitScript(() => {
+        Object.defineProperty(navigator, 'webdriver', {
+            get: () => false,
+        });
+    });
+    
     try {
         await page.goto(TARGET_URL, { timeout: 60000 });
         await page.waitForSelector(SELECTORS.LIST_PARENT, { timeout: 40000 }); 
@@ -145,6 +152,13 @@ export async function runScrapeAndGetData() {
         console.log('✅ List parent yükləndi, job containerləri gözlənilir...');
         await page.waitForSelector(SELECTORS.JOB_CONTAINER, { timeout: 10000 });
         console.log('✅ Job containerləri aşkar edildi, scroll başlayır...');
+
+        // ✅✅✅ DEBUG ÜÇÜN: İlk job wrapper-in HTML-ni çap et
+        const firstWrapper = page.locator(SELECTORS.JOB_CONTAINER).first();
+        const firstWrapperHTML = await firstWrapper.innerHTML();
+        console.log('\n🔍 İLK JOB WRAPPER HTML:');
+        console.log(firstWrapperHTML.substring(0, 1000)); // İlk 1000 simvol
+        console.log('...\n');
 
         // --- SCROLL DÖVRÜ ---
         let currentJobCount = 0;
