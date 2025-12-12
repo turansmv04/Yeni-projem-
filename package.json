@@ -9,8 +9,7 @@
     "start-next": "next start -H 0.0.0.0 -p $PORT",
     "start-bot": "node --loader ts-node/esm bot.ts",
     "lint": "next lint",
-    "start": "npm run start-bot & npm run start-next"
-  },
+"start": "npm run start-bot & exec npm run start-next"  },
   "dependencies": {
     "@sparticuz/chromium": "^141.0.0",
     "@supabase/supabase-js": "^2.81.1",
