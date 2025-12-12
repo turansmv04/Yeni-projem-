@@ -10,7 +10,6 @@ export interface ScrapedJobData {
     siteUrl: string; 
 }
 
-// SİZİN URL DƏYƏRLƏRİNİZ
 const BASE_URL: string = 'https://www.workingnomads.com'; 
 const TARGET_URL: string = `${BASE_URL}/jobs?postedDate=1`; 
 const MAX_SCROLL_COUNT = 500; 
@@ -24,8 +23,6 @@ const SELECTORS = {
     DETAIL_SALARY_B: 'div.job-detail-sidebar:has(i.fa-money)',
     LIST_PARENT: 'div.jobs-list',
 };
-
-// --- KÖMƏKÇİ FUNKSİYALAR ---
 
 async function scrapeDetailPageForSalary(browser: Browser, url: string): Promise<string> {
     const detailPage = await browser.newPage();
@@ -55,32 +52,40 @@ async function scrapeDetailPageForSalary(browser: Browser, url: string): Promise
     return salary;
 }
 
-async function extractInitialJobData(wrapper: Locator): Promise<ScrapedJobData> {
+async function extractInitialJobData(wrapper: Locator, index: number): Promise<ScrapedJobData> {
     
-    const titleLocator = wrapper.locator(SELECTORS.TITLE_URL).first();
     let title = '', relativeUrl = null, url = 'N/A', companyName = 'N/A', salary = 'N/A';
     
     try {
-        // ✅ TIMEOUT ARTDIRILDI: 1000ms → 5000ms
-        title = (await titleLocator.innerText({ timeout: 5000 })).trim();
-        relativeUrl = await titleLocator.getAttribute('href');
+        // ✅ ƏVVƏLCƏ Ən SADƏ YOLLA TRY EDƏK - innerText yox, textContent
+        const titleElement = wrapper.locator(SELECTORS.TITLE_URL).first();
+        
+        // Əvvəlcə element var mı yoxla
+        const count = await titleElement.count();
+        if (count === 0) {
+            console.warn(`⚠️ [${index}] Title elementi tapılmadı, HTML yoxlanılır...`);
+            const html = await wrapper.innerHTML();
+            console.log(`HTML snippet: ${html.substring(0, 300)}`);
+            return { title: '', companyName: 'N/A', url: 'N/A', salary: 'N/A', siteUrl: BASE_URL }; 
+        }
+        
+        title = (await titleElement.textContent({ timeout: 10000 }) || '').trim();
+        relativeUrl = await titleElement.getAttribute('href');
         url = relativeUrl ? `${BASE_URL}${relativeUrl}` : 'N/A';
+        
     } catch (e) {
-        // ✅ XƏTA LOQU əlavə edildi debug üçün
-        console.warn(`⚠️ Title çıxarıla bilmədi:`, e instanceof Error ? e.message : String(e));
+        console.warn(`⚠️ [${index}] Title çıxarıla bilmədi:`, e instanceof Error ? e.message : String(e));
         return { title: '', companyName: 'N/A', url: 'N/A', salary: 'N/A', siteUrl: BASE_URL }; 
     }
 
-    // ✅ YENİ YOXLAMA: Boş title olarsa skip et
     if (!title || title.length === 0) {
-        console.warn(`⚠️ Boş title tapıldı, bu iş keçilir`);
+        console.warn(`⚠️ [${index}] Boş title tapıldı`);
         return { title: '', companyName: 'N/A', url: 'N/A', salary: 'N/A', siteUrl: BASE_URL };
     }
 
     try {
         const companyContainerLocator = wrapper.locator(SELECTORS.COMPANY_CONTAINER).first(); 
-        // ✅ TIMEOUT ARTDIRILDI: 1000ms → 3000ms
-        let rawText = (await companyContainerLocator.innerText({ timeout: 3000 })).trim(); 
+        let rawText = (await companyContainerLocator.textContent({ timeout: 3000 }) || '').trim(); 
         let cleanedText = rawText.replace(/\s+/g, ' ').trim(); 
         
         const lowerCaseName = cleanedText.toLowerCase();
@@ -93,7 +98,6 @@ async function extractInitialJobData(wrapper: Locator): Promise<ScrapedJobData> 
         }
 
     } catch (e) { 
-        console.warn(`⚠️ Şirkət adı çıxarıla bilmədi: "${title}"`);
         companyName = 'N/A';
     }
     
@@ -108,8 +112,8 @@ async function extractInitialJobData(wrapper: Locator): Promise<ScrapedJobData> 
     
     try {
         const salaryLocator = wrapper.locator(SELECTORS.LIST_SALARY).filter({ hasText: '$' }).first();
-        const salaryText = await salaryLocator.innerText({ timeout: 500 });
-        if (salaryText.includes('$') && salaryText.length > 5) {
+        const salaryText = await salaryLocator.textContent({ timeout: 500 });
+        if (salaryText && salaryText.includes('$') && salaryText.length > 5) {
             salary = salaryText.trim();
         }
     } catch (e) { /* Siyahıda Salary tapılmadı */ }
@@ -117,8 +121,6 @@ async function extractInitialJobData(wrapper: Locator): Promise<ScrapedJobData> 
     return { title, companyName, url, salary, siteUrl: BASE_URL };
 }
 
-
-// --- ƏSAS FUNKSİYA ---
 export async function runScrapeAndGetData() {
     
     console.log(`\n--- WorkingNomads Scraper işə düşdü ---`);
@@ -135,39 +137,51 @@ export async function runScrapeAndGetData() {
             '--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
         ]
     });    
+    
     const page: Page = await browser.newPage();
     
-    // ✅ Playwright-ın bot flaglarını gizlət
     await page.addInitScript(() => {
         Object.defineProperty(navigator, 'webdriver', {
             get: () => false,
         });
+        // ✅ AngularJS tələb edirsə, bunu əlavə et
+        (window as any).angular = (window as any).angular || {};
     });
     
     try {
-        await page.goto(TARGET_URL, { timeout: 60000 });
-        await page.waitForSelector(SELECTORS.LIST_PARENT, { timeout: 40000 }); 
+        // ✅ networkidle - JavaScript tamamilə yüklənməsini gözlə
+        console.log('⏳ Səhifə yüklənir...');
+        await page.goto(TARGET_URL, { 
+            timeout: 90000, 
+            waitUntil: 'networkidle' // ← ÖNƏMLİ DƏYİŞİKLİK
+        });
         
-        // ✅ YENİ: Job containerlərin yüklənməsini gözlə
-        console.log('✅ List parent yükləndi, job containerləri gözlənilir...');
-        await page.waitForSelector(SELECTORS.JOB_CONTAINER, { timeout: 10000 });
-        console.log('✅ Job containerləri aşkar edildi, scroll başlayır...');
+        console.log('⏳ JavaScript execution gözlənilir...');
+        await page.waitForTimeout(5000); // 5 saniyə əlavə gözlə
+        
+        await page.waitForSelector(SELECTORS.LIST_PARENT, { timeout: 40000 }); 
+        console.log('✅ List parent yükləndi');
+        
+        await page.waitForSelector(SELECTORS.JOB_CONTAINER, { timeout: 15000 });
+        const initialCount = await page.locator(SELECTORS.JOB_CONTAINER).count();
+        console.log(`✅ ${initialCount} Job container aşkar edildi`);
+        
+        // ✅ İLK ELEMENTIN HTML-NI YOXLA
+        if (initialCount > 0) {
+            const firstHTML = await page.locator(SELECTORS.JOB_CONTAINER).first().innerHTML();
+            console.log('\n🔍 İLK JOB WRAPPER HTML (ilk 800 simvol):');
+            console.log(firstHTML.substring(0, 800));
+            console.log('...\n');
+        }
 
-        // ✅✅✅ DEBUG ÜÇÜN: İlk job wrapper-in HTML-ni çap et
-        const firstWrapper = page.locator(SELECTORS.JOB_CONTAINER).first();
-        const firstWrapperHTML = await firstWrapper.innerHTML();
-        console.log('\n🔍 İLK JOB WRAPPER HTML:');
-        console.log(firstWrapperHTML.substring(0, 1000)); // İlk 1000 simvol
-        console.log('...\n');
-
-        // --- SCROLL DÖVRÜ ---
-        let currentJobCount = 0;
+        // SCROLL DÖVRÜ
+        let currentJobCount = initialCount;
         let previousCount = 0;
         let sameCountIterations = 0; 
         
         while (currentJobCount < MAX_SCROLL_COUNT && sameCountIterations < 10) { 
             await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
-            await page.waitForTimeout(2000); 
+            await page.waitForTimeout(3000); // 3 saniyə gözlə
             
             previousCount = currentJobCount;
             currentJobCount = await page.locator(SELECTORS.JOB_CONTAINER).count();
@@ -185,15 +199,16 @@ export async function runScrapeAndGetData() {
             }
         }
         
-        // --- MƏLUMATIN ÇIXARILMASI ---
-        console.log(`\n${currentJobCount} elementdən əsas məlumat çıxarılır...`);
+        console.log(`\n📊 ${currentJobCount} elementdən məlumat çıxarılır...`);
         const jobWrappers = await page.locator(SELECTORS.JOB_CONTAINER).all();
         
-        const initialResults: ScrapedJobData[] = await Promise.all(
-            jobWrappers.map(extractInitialJobData)
-        );
+        // ✅ Index əlavə et ki, hansı elementdə xəta olduğunu görək
+        const initialResults: ScrapedJobData[] = [];
+        for (let i = 0; i < jobWrappers.length; i++) {
+            const result = await extractInitialJobData(jobWrappers[i], i);
+            initialResults.push(result);
+        }
         
-        // --- SALARY DƏQİQLƏŞDİRMƏ ---
         const finalResults: ScrapedJobData[] = []; 
         
         for (const job of initialResults) {
@@ -209,9 +224,8 @@ export async function runScrapeAndGetData() {
         const filteredResults = finalResults.filter(job => job.url !== 'N/A');
 
         console.log("\n--- SCRAPING NƏTİCƏLƏRİ ---");
-        console.log(`\n✅ Yekun Nəticə: ${filteredResults.length} elan çıxarıldı.`);
+        console.log(`✅ Yekun Nəticə: ${filteredResults.length} elan çıxarıldı.`);
 
-        // --- SUPABASE-Ə YAZMA HİSSƏSİ ---
         await insertOrUpdateSupabase(filteredResults);
 
         return filteredResults; 
