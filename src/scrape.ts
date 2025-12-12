@@ -16,7 +16,8 @@ const MAX_SCROLL_COUNT = 500;
 
 const SELECTORS = {
     JOB_CONTAINER: '.job-wrapper',
-    TITLE_URL: 'h4.hidden-xs a',
+    // ✅ DƏYİŞDİRİLDİ: hidden-xs-i sildik, hamı h4 > a götür
+    TITLE_URL: 'h4 a',
     COMPANY_CONTAINER: '.job-company', 
     LIST_SALARY: 'div[ng-show*="model.salary_range"] span.about-job-line-text.ng-binding',
     DETAIL_SALARY_A: '.job-details-inner div:has(i.fa-money)', 
@@ -45,7 +46,7 @@ async function scrapeDetailPageForSalary(browser: Browser, url: string): Promise
         }
 
     } catch (e) {
-        console.warn(`\n⚠️ XƏBƏRDARLIQ: Detal səhifəsi yüklənmədi və ya Salary tapılmadı: ${url}`);
+        console.warn(`⚠️ Detal səhifəsi yüklənmədi: ${url}`);
     } finally {
         await detailPage.close();
     }
@@ -57,29 +58,28 @@ async function extractInitialJobData(wrapper: Locator, index: number): Promise<S
     let title = '', relativeUrl = null, url = 'N/A', companyName = 'N/A', salary = 'N/A';
     
     try {
-        // ✅ ƏVVƏLCƏ Ən SADƏ YOLLA TRY EDƏK - innerText yox, textContent
         const titleElement = wrapper.locator(SELECTORS.TITLE_URL).first();
         
-        // Əvvəlcə element var mı yoxla
         const count = await titleElement.count();
         if (count === 0) {
-            console.warn(`⚠️ [${index}] Title elementi tapılmadı, HTML yoxlanılır...`);
-            const html = await wrapper.innerHTML();
-            console.log(`HTML snippet: ${html.substring(0, 300)}`);
             return { title: '', companyName: 'N/A', url: 'N/A', salary: 'N/A', siteUrl: BASE_URL }; 
         }
         
-        title = (await titleElement.textContent({ timeout: 10000 }) || '').trim();
+        title = (await titleElement.textContent({ timeout: 3000 }) || '').trim();
         relativeUrl = await titleElement.getAttribute('href');
         url = relativeUrl ? `${BASE_URL}${relativeUrl}` : 'N/A';
         
+        // ✅ YENİ: Sponsored linkləri filter et
+        if (!url.startsWith(BASE_URL)) {
+            console.log(`⏭️ [${index}] Sponsored post keçildi: ${url.substring(0, 50)}...`);
+            return { title: '', companyName: 'N/A', url: 'N/A', salary: 'N/A', siteUrl: BASE_URL };
+        }
+        
     } catch (e) {
-        console.warn(`⚠️ [${index}] Title çıxarıla bilmədi:`, e instanceof Error ? e.message : String(e));
         return { title: '', companyName: 'N/A', url: 'N/A', salary: 'N/A', siteUrl: BASE_URL }; 
     }
 
     if (!title || title.length === 0) {
-        console.warn(`⚠️ [${index}] Boş title tapıldı`);
         return { title: '', companyName: 'N/A', url: 'N/A', salary: 'N/A', siteUrl: BASE_URL };
     }
 
@@ -116,7 +116,7 @@ async function extractInitialJobData(wrapper: Locator, index: number): Promise<S
         if (salaryText && salaryText.includes('$') && salaryText.length > 5) {
             salary = salaryText.trim();
         }
-    } catch (e) { /* Siyahıda Salary tapılmadı */ }
+    } catch (e) { /* Salary yoxdur */ }
 
     return { title, companyName, url, salary, siteUrl: BASE_URL };
 }
@@ -144,20 +144,17 @@ export async function runScrapeAndGetData() {
         Object.defineProperty(navigator, 'webdriver', {
             get: () => false,
         });
-        // ✅ AngularJS tələb edirsə, bunu əlavə et
-        (window as any).angular = (window as any).angular || {};
     });
     
     try {
-        // ✅ networkidle - JavaScript tamamilə yüklənməsini gözlə
         console.log('⏳ Səhifə yüklənir...');
         await page.goto(TARGET_URL, { 
             timeout: 90000, 
-            waitUntil: 'networkidle' // ← ÖNƏMLİ DƏYİŞİKLİK
+            waitUntil: 'networkidle'
         });
         
-        console.log('⏳ JavaScript execution gözlənilir...');
-        await page.waitForTimeout(5000); // 5 saniyə əlavə gözlə
+        console.log('⏳ JavaScript yüklənməsi gözlənilir...');
+        await page.waitForTimeout(5000);
         
         await page.waitForSelector(SELECTORS.LIST_PARENT, { timeout: 40000 }); 
         console.log('✅ List parent yükləndi');
@@ -165,23 +162,15 @@ export async function runScrapeAndGetData() {
         await page.waitForSelector(SELECTORS.JOB_CONTAINER, { timeout: 15000 });
         const initialCount = await page.locator(SELECTORS.JOB_CONTAINER).count();
         console.log(`✅ ${initialCount} Job container aşkar edildi`);
-        
-        // ✅ İLK ELEMENTIN HTML-NI YOXLA
-        if (initialCount > 0) {
-            const firstHTML = await page.locator(SELECTORS.JOB_CONTAINER).first().innerHTML();
-            console.log('\n🔍 İLK JOB WRAPPER HTML (ilk 800 simvol):');
-            console.log(firstHTML.substring(0, 800));
-            console.log('...\n');
-        }
 
-        // SCROLL DÖVRÜ
+        // SCROLL
         let currentJobCount = initialCount;
         let previousCount = 0;
         let sameCountIterations = 0; 
         
         while (currentJobCount < MAX_SCROLL_COUNT && sameCountIterations < 10) { 
             await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
-            await page.waitForTimeout(3000); // 3 saniyə gözlə
+            await page.waitForTimeout(3000);
             
             previousCount = currentJobCount;
             currentJobCount = await page.locator(SELECTORS.JOB_CONTAINER).count();
@@ -194,7 +183,7 @@ export async function runScrapeAndGetData() {
             }
 
             if (sameCountIterations >= 10 && currentJobCount > 0) { 
-                console.log("✅ Say dəyişmir. Bütün mövcud elanlar tapıldı.");
+                console.log("✅ Bütün elanlar tapıldı.");
                 break;
             }
         }
@@ -202,7 +191,6 @@ export async function runScrapeAndGetData() {
         console.log(`\n📊 ${currentJobCount} elementdən məlumat çıxarılır...`);
         const jobWrappers = await page.locator(SELECTORS.JOB_CONTAINER).all();
         
-        // ✅ Index əlavə et ki, hansı elementdə xəta olduğunu görək
         const initialResults: ScrapedJobData[] = [];
         for (let i = 0; i < jobWrappers.length; i++) {
             const result = await extractInitialJobData(jobWrappers[i], i);
@@ -224,14 +212,14 @@ export async function runScrapeAndGetData() {
         const filteredResults = finalResults.filter(job => job.url !== 'N/A');
 
         console.log("\n--- SCRAPING NƏTİCƏLƏRİ ---");
-        console.log(`✅ Yekun Nəticə: ${filteredResults.length} elan çıxarıldı.`);
+        console.log(`✅ Yekun: ${filteredResults.length} elan çıxarıldı.`);
 
         await insertOrUpdateSupabase(filteredResults);
 
         return filteredResults; 
 
     } catch (e) {
-        console.error(`❌ Əsas Xəta: ${e instanceof Error ? e.message : String(e)}`);
+        console.error(`❌ Xəta: ${e instanceof Error ? e.message : String(e)}`);
         throw e; 
     } finally {
         await browser.close();
