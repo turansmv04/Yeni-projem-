@@ -24,6 +24,11 @@ const SELECTORS = {
     LIST_PARENT: 'div.jobs-list',
 };
 
+// ✅ GLOBAL STATE - yalnız 1 scraper eyni anda işləsin
+let isScraperRunning = false;
+let lastScrapedData: ScrapedJobData[] | null = null;
+let lastScrapeTime = 0;
+
 async function scrapeDetailPageForSalary(browser: Browser, url: string): Promise<string> {
     const detailPage = await browser.newPage();
     let salary = 'N/A';
@@ -109,6 +114,27 @@ async function extractInitialJobData(wrapper: Locator): Promise<ScrapedJobData> 
 
 export async function runScrapeAndGetData() {
     
+    // ✅ Əgər artıq scraper işləyirsə, gözlə
+    if (isScraperRunning) {
+        console.log('⏸️ Scraper artıq işləyir, gözləyirəm...');
+        
+        // Əgər son 10 dəqiqə ərzində data varsa, onu qaytар
+        const now = Date.now();
+        if (lastScrapedData && (now - lastScrapeTime) < 10 * 60 * 1000) {
+            console.log('✅ Cache-dən qaytarılır');
+            return lastScrapedData;
+        }
+        
+        // Yoxsa 30 saniyə gözlə və yenidən cəhd et
+        await new Promise(resolve => setTimeout(resolve, 30000));
+        
+        if (isScraperRunning) {
+            throw new Error('Scraper hələ də məşğuldur. Zəhmət olmasa bir az sonra yenidən cəhd edin.');
+        }
+    }
+    
+    isScraperRunning = true;
+    
     console.log(`\n🚀 WorkingNomads Scraper START`);
     console.log(`🌐 ${TARGET_URL}`);
     
@@ -131,7 +157,6 @@ export async function runScrapeAndGetData() {
     });
     
     try {
-        // ✅ DƏYİŞİKLİK: networkidle → domcontentloaded (daha sürətli)
         console.log('⏳ Naviqasiya...');
         await page.goto(TARGET_URL, { 
             timeout: 60000,
@@ -139,12 +164,9 @@ export async function runScrapeAndGetData() {
         });
         
         console.log('✅ Səhifə yükləndi');
-        
-        // ✅ AngularJS yüklənməsi üçün əlavə gözləmə
         console.log('⏳ AngularJS gözlənilir...');
-        await page.waitForTimeout(8000); // 8 saniyə gözlə
+        await page.waitForTimeout(8000);
         
-        // ✅ Element gözlə
         console.log('⏳ Elementlər yüklənir...');
         await page.waitForSelector(SELECTORS.LIST_PARENT, { timeout: 60000 }); 
         console.log('✅ List parent tapıldı');
@@ -194,12 +216,21 @@ export async function runScrapeAndGetData() {
         const finalResults: ScrapedJobData[] = []; 
         
         console.log('💰 Salary məlumatları yoxlanılır...');
-        for (const job of validJobs) {
+        
+        // ✅ Salary yoxlamanı limitlə - hər 10 işdən sonra 2s pauza
+        for (let i = 0; i < validJobs.length; i++) {
+            const job = validJobs[i];
             if (job.salary === 'N/A' && job.url.startsWith(BASE_URL)) {
                 const detailSalary = await scrapeDetailPageForSalary(browser, job.url); 
                 job.salary = detailSalary;
             }
             finalResults.push(job);
+            
+            // Hər 10 işdən sonra 2s gözlə
+            if ((i + 1) % 10 === 0) {
+                console.log(`💤 ${i + 1}/${validJobs.length} - qısa pauza...`);
+                await new Promise(resolve => setTimeout(resolve, 2000));
+            }
         }
         
         const filteredResults = finalResults.filter(job => job.url !== 'N/A');
@@ -210,13 +241,19 @@ export async function runScrapeAndGetData() {
         await insertOrUpdateSupabase(filteredResults);
 
         console.log('✅ TAMAMLANDI!');
+        
+        // ✅ Cache-ə yaz
+        lastScrapedData = filteredResults;
+        lastScrapeTime = Date.now();
+        
         return filteredResults; 
 
     } catch (e) {
         console.error(`❌ XƏTA: ${e instanceof Error ? e.message : String(e)}`);
-        throw e; 
+        throw e;
     } finally {
         await browser.close();
+        isScraperRunning = false;
         console.log('🔚 Browser bağlandı\n');
     }
 }
