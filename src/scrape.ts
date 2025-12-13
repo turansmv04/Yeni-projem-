@@ -131,39 +131,48 @@ export async function runScrapeAndGetData() {
     });
     
     try {
+        // ✅ DƏYİŞİKLİK: networkidle → domcontentloaded (daha sürətli)
+        console.log('⏳ Naviqasiya...');
         await page.goto(TARGET_URL, { 
-            timeout: 90000,
-            waitUntil: 'networkidle'
+            timeout: 60000,
+            waitUntil: 'domcontentloaded'
         });
         
-        console.log('⏳ Səhifə yükləndi, element gözlənilir...');
-        await page.waitForTimeout(3000);
+        console.log('✅ Səhifə yükləndi');
         
+        // ✅ AngularJS yüklənməsi üçün əlavə gözləmə
+        console.log('⏳ AngularJS gözlənilir...');
+        await page.waitForTimeout(8000); // 8 saniyə gözlə
+        
+        // ✅ Element gözlə
+        console.log('⏳ Elementlər yüklənir...');
         await page.waitForSelector(SELECTORS.LIST_PARENT, { timeout: 60000 }); 
         console.log('✅ List parent tapıldı');
         
         await page.waitForSelector(SELECTORS.JOB_CONTAINER, { timeout: 30000 });
-        console.log('✅ Job containerləri tapıldı');
+        const initialCount = await page.locator(SELECTORS.JOB_CONTAINER).count();
+        console.log(`✅ ${initialCount} job container tapıldı`);
 
-        let currentJobCount = 0;
+        let currentJobCount = initialCount;
         let previousCount = 0;
         let sameCountIterations = 0; 
         
+        console.log('🔄 Scroll başlayır...');
         while (currentJobCount < MAX_SCROLL_COUNT && sameCountIterations < 10) { 
             await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
-            await page.waitForTimeout(2000); 
+            await page.waitForTimeout(2500); 
             
             previousCount = currentJobCount;
             currentJobCount = await page.locator(SELECTORS.JOB_CONTAINER).count();
-            console.log(`📊 ${currentJobCount} elan`);
             
-            if (currentJobCount === previousCount) {
-                sameCountIterations++;
-            } else {
+            if (currentJobCount !== previousCount) {
+                console.log(`📊 ${currentJobCount} elan`);
                 sameCountIterations = 0;
+            } else {
+                sameCountIterations++;
             }
 
-            if (sameCountIterations >= 10 && currentJobCount > 0) { 
+            if (sameCountIterations >= 10) { 
                 console.log("✅ Hamısı yükləndi");
                 break;
             }
